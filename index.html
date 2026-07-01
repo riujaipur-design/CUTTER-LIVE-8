@@ -50,13 +50,15 @@ window.handleChallanFile = function(ev){
   ev.target.value = '';
   if(!file || !pendingChallanKey) return;
   const key = pendingChallanKey;
+  const isPdf = file.type==='application/pdf' || /\.pdf$/i.test(file.name||'');
   const label = document.getElementById('ld');
   const prevText = label?label.textContent:'';
   if(label){label.textContent='⏳ Uploading...';label.style.color='#fbbf24';}
-  const path = 'challan-photos/'+key+'_'+Date.now()+'.jpg';
+  const ext = isPdf?'pdf':((file.name||'').split('.').pop()||'jpg');
+  const path = 'challan-photos/'+key+'_'+Date.now()+'.'+ext;
   const storageRef = sref(storage, path);
-  uploadBytes(storageRef, file).then(()=>getDownloadURL(storageRef)).then(url=>{
-    return set(ref(db,'challanPhotos/'+key), {url, uploadedAt: new Date().toISOString()});
+  uploadBytes(storageRef, file, {contentType:file.type||(isPdf?'application/pdf':'image/jpeg')}).then(()=>getDownloadURL(storageRef)).then(url=>{
+    return set(ref(db,'challanPhotos/'+key), {url, isPdf, uploadedAt: new Date().toISOString()});
   }).then(()=>{
     if(label){label.textContent='🟢 Live';label.style.color='#4ade80';}
   }).catch(err=>{
@@ -68,7 +70,12 @@ window.viewChallanPhoto = function(firm,challan,date){
   const key = challanKey(firm,challan,date);
   const entry = CP[key];
   if(!entry || !entry.url) return;
-  document.getElementById('cp-lightbox-img').src = entry.url;
+  const box = document.getElementById('cp-lightbox-body');
+  if(entry.isPdf){
+    box.innerHTML = `<iframe src="${entry.url}" style="width:92vw;height:88vh;border:none;border-radius:8px;background:#fff"></iframe>`;
+  } else {
+    box.innerHTML = `<img id="cp-lightbox-img" src="${entry.url}">`;
+  }
   document.getElementById('cp-lightbox').classList.add('active');
 };
 window.closeChallanLightbox = function(){
@@ -617,10 +624,10 @@ input:focus,select:focus{border-color:#38bdf8}
   </div>
 </div>
 <!-- Challan photo upload input + lightbox -->
-<input type="file" id="cp-file" accept="image/*" capture="environment" style="display:none" onchange="handleChallanFile(event)">
+<input type="file" id="cp-file" accept="image/*,application/pdf" style="display:none" onchange="handleChallanFile(event)">
 <div class="cp-lightbox" id="cp-lightbox" onclick="if(event.target===this)closeChallanLightbox()">
   <button class="cp-lightbox-close" onclick="closeChallanLightbox()">✕</button>
-  <img id="cp-lightbox-img" src="">
+  <div id="cp-lightbox-body"></div>
 </div>
 </body>
 </html>
